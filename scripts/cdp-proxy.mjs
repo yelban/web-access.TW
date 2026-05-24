@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// CDP Proxy - 通过 HTTP API 操控用户日常浏览器（Chrome / Edge / Chromium 等）
-// 要求：浏览器已开启 remote debugging（chrome://inspect#remote-debugging toggle）
+// CDP Proxy - 透過 HTTP API 操控使用者日常瀏覽器（Chrome / Edge / Chromium 等）
+// 要求：瀏覽器已開啟 remote debugging（chrome://inspect#remote-debugging toggle）
 // Node.js 22+（使用原生 WebSocket）
 
 import http from 'node:http';
@@ -11,7 +11,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { selectBrowser, findFallbackPort } from './browser-discovery.mjs';
 
-// --- 解析命令行 --browser 参数（本次启动用哪个浏览器）---
+// --- 解析命令列 --browser 引數（本次啟動用哪個瀏覽器）---
 function parseBrowserArg() {
   const argv = process.argv.slice(2);
   for (let i = 0; i < argv.length; i++) {
@@ -31,69 +31,69 @@ const managedTabs = new Map(); // targetId -> { lastAccessed: number }
 const TAB_IDLE_TIMEOUT = parseInt(process.env.CDP_TAB_IDLE_TIMEOUT || '900000'); // 15 min default
 const CLEANUP_INTERVAL = 60000; // sweep every 60s
 
-// --- WebSocket 兼容层 ---
+// --- WebSocket 相容層 ---
 let WS;
 if (typeof globalThis.WebSocket !== 'undefined') {
-  // Node 22+ 原生 WebSocket（浏览器兼容 API）
+  // Node 22+ 原生 WebSocket（瀏覽器相容 API）
   WS = globalThis.WebSocket;
 } else {
-  // 回退到 ws 模块
+  // 回退到 ws 模組
   try {
     WS = (await import('ws')).default;
   } catch {
-    console.error('[CDP Proxy] 错误：Node.js 版本 < 22 且未安装 ws 模块');
-    console.error('  解决方案：升级到 Node.js 22+ 或执行 npm install -g ws');
+    console.error('[CDP Proxy] 錯誤：Node.js 版本 < 22 且未安裝 ws 模組');
+    console.error('  解決方案：升級到 Node.js 22+ 或執行 npm install -g ws');
     process.exit(1);
   }
 }
 
-// proxy 启动时连接到的浏览器（用于 /health 暴露给 check-deps 比较）
+// proxy 啟動時連線到的瀏覽器（用於 /health 暴露給 check-deps 比較）
 let connectedBrowser = null; // { id, label, source }
 
-// pin 首次成功连接的浏览器 id。重连时只接受同一 id，避免悄悄降级到别的浏览器。
+// pin 首次成功連線的瀏覽器 id。重連時只接受同一 id，避免悄悄降級到別的瀏覽器。
 let pinnedBrowserId = null;
 
-// --- 自动发现浏览器调试端口 ---
-// 决策完全委派给 browser-discovery.selectBrowser；此处只做日志和返回结构包装。
+// --- 自動發現瀏覽器除錯埠 ---
+// 決策完全委派給 browser-discovery.selectBrowser；此處只做日誌和返回結構包裝。
 async function discoverChromePort() {
   const result = await selectBrowser(BROWSER_OVERRIDE);
   if (result.kind === 'ok') {
     if (pinnedBrowserId && pinnedBrowserId !== result.browser.id) {
       throw new Error(
-        `本次连接的浏览器已经是 ${pinnedBrowserId}，不会自动切到 ${result.browser.id}。` +
-        `如果想换成 ${result.browser.id}，请先在终端运行 pkill -f cdp-proxy.mjs 重置。`
+        `本次連線的瀏覽器已經是 ${pinnedBrowserId}，不會自動切到 ${result.browser.id}。` +
+        `如果想換成 ${result.browser.id}，請先在終端執行 pkill -f cdp-proxy.mjs 重置。`
       );
     }
     pinnedBrowserId = result.browser.id;
     connectedBrowser = { id: result.browser.id, label: result.browser.label, source: result.source };
     const tag = result.source === 'override' ? '[--browser 指定]' : '[config.env 偏好]';
-    console.log(`[CDP Proxy] 选用 ${result.browser.label} (端口 ${result.browser.port}${result.browser.wsPath ? '，带 wsPath' : ''}) ${tag}`);
+    console.log(`[CDP Proxy] 選用 ${result.browser.label} (埠 ${result.browser.port}${result.browser.wsPath ? '，帶 wsPath' : ''}) ${tag}`);
     return { port: result.browser.port, wsPath: result.browser.wsPath };
   }
-  // mismatch：有显式偏好但未检测到 —— 硬错，绝不降级
+  // mismatch：有顯式偏好但未檢測到 —— 硬錯，絕不降級
   if (result.kind === 'mismatch') {
     const expected = result.override || result.configured;
-    const src = result.source === 'override' ? '本次指定' : '默认偏好';
+    const src = result.source === 'override' ? '本次指定' : '預設偏好';
     throw new Error(
-      `${src}的浏览器是 "${expected}"，但没连上。Agent 处理顺序：` +
-      `(1) 先用系统命令打开 ${expected}（按平台选择，如 macOS 的 open -a），稍等后重试请求；` +
-      `(2) 若仍失败，说明远程调试开关没启用 —— 告知用户在地址栏访问 ${expected}://inspect/#remote-debugging 勾选 "Allow remote debugging for this browser instance"。`
+      `${src}的瀏覽器是 "${expected}"，但沒連上。Agent 處理順序：` +
+      `(1) 先用系統命令開啟 ${expected}（按平台選擇，如 macOS 的 open -a），稍等後重試請求；` +
+      `(2) 若仍失敗，說明遠端除錯開關沒啟用 —— 告知使用者在位址列訪問 ${expected}://inspect/#remote-debugging 勾選 "Allow remote debugging for this browser instance"。`
     );
   }
-  // 已 pin 过浏览器（如首次连上 edge 后 edge 退出）：拒绝任何 fallback
+  // 已 pin 過瀏覽器（如首次連上 edge 後 edge 退出）：拒絕任何 fallback
   if (pinnedBrowserId) {
     throw new Error(
-      `本次连接的浏览器是 ${pinnedBrowserId}，但现在没连上。Agent 处理顺序：` +
-      `(1) 先用系统命令打开 ${pinnedBrowserId}（按平台选择），稍等后重试请求；` +
-      `(2) 若仍失败，告知用户在地址栏访问 ${pinnedBrowserId}://inspect/#remote-debugging 重新勾选允许。` +
-      `若想换成其他浏览器，请先在终端运行 pkill -f cdp-proxy.mjs 重置。`
+      `本次連線的瀏覽器是 ${pinnedBrowserId}，但現在沒連上。Agent 處理順序：` +
+      `(1) 先用系統命令開啟 ${pinnedBrowserId}（按平台選擇），稍等後重試請求；` +
+      `(2) 若仍失敗，告知使用者在位址列訪問 ${pinnedBrowserId}://inspect/#remote-debugging 重新勾選允許。` +
+      `若想換成其他瀏覽器，請先在終端執行 pkill -f cdp-proxy.mjs 重置。`
     );
   }
-  // 仅在「从未成功连接 + 无偏好/override」时允许固定端口兜底（手动 --remote-debugging-port 启动场景）
+  // 僅在「從未成功連線 + 無偏好/override」時允許固定埠兜底（手動 --remote-debugging-port 啟動場景）
   const fallbackPort = await findFallbackPort();
   if (fallbackPort !== null) {
-    connectedBrowser = { id: 'unknown', label: '未知（通过手动调试端口连接）', source: 'fallback' };
-    console.log(`[CDP Proxy] 通过手动调试端口连接: ${fallbackPort}`);
+    connectedBrowser = { id: 'unknown', label: '未知（透過手動除錯埠連線）', source: 'fallback' };
+    console.log(`[CDP Proxy] 透過手動除錯埠連線: ${fallbackPort}`);
     return { port: fallbackPort, wsPath: null };
   }
   return null;
@@ -104,23 +104,23 @@ function getWebSocketUrl(port, wsPath) {
   return `ws://127.0.0.1:${port}/devtools/browser`;
 }
 
-// --- WebSocket 连接管理 ---
+// --- WebSocket 連線管理 ---
 let chromePort = null;
 let chromeWsPath = null;
 
 let connectingPromise = null;
 async function connect() {
   if (ws && (ws.readyState === WS.OPEN || ws.readyState === 1)) return;
-  if (connectingPromise) return connectingPromise;  // 复用进行中的连接
+  if (connectingPromise) return connectingPromise;  // 複用進行中的連線
 
   if (!chromePort) {
     const discovered = await discoverChromePort();
     if (!discovered) {
       throw new Error(
-        'Chrome 未开启远程调试端口。请用以下方式启动 Chrome：\n' +
+        'Chrome 未開啟遠端除錯埠。請用以下方式啟動 Chrome：\n' +
         '  macOS: /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222\n' +
         '  Linux: google-chrome --remote-debugging-port=9222\n' +
-        '  或在 chrome://flags 中搜索 "remote debugging" 并启用'
+        '  或在 chrome://flags 中搜索 "remote debugging" 並啟用'
       );
     }
     chromePort = discovered.port;
@@ -128,7 +128,7 @@ async function connect() {
   }
 
   const wsUrl = getWebSocketUrl(chromePort, chromeWsPath);
-  if (!wsUrl) throw new Error('无法获取 Chrome WebSocket URL');
+  if (!wsUrl) throw new Error('無法獲取 Chrome WebSocket URL');
 
   return connectingPromise = new Promise((resolve, reject) => {
     ws = new WS(wsUrl);
@@ -136,7 +136,7 @@ async function connect() {
     const onOpen = () => {
       cleanup();
       connectingPromise = null;
-      console.log(`[CDP Proxy] 已连接浏览器 (端口 ${chromePort})`);
+      console.log(`[CDP Proxy] 已連線瀏覽器 (埠 ${chromePort})`);
       resolve();
     };
     const onError = (e) => {
@@ -145,14 +145,14 @@ async function connect() {
       ws = null;
       chromePort = null;
       chromeWsPath = null;
-      const msg = e.message || e.error?.message || '连接失败';
-      console.error('[CDP Proxy] 连接错误:', msg, '（端口缓存已清除，下次将重新发现）');
+      const msg = e.message || e.error?.message || '連線失敗';
+      console.error('[CDP Proxy] 連線錯誤:', msg, '（埠快取已清除，下次將重新發現）');
       reject(new Error(msg));
     };
     const onClose = () => {
-      console.log('[CDP Proxy] 连接断开');
+      console.log('[CDP Proxy] 連線斷開');
       ws = null;
-      chromePort = null; // 重置端口缓存，下次连接重新发现
+      chromePort = null; // 重置埠快取，下次連線重新發現
       chromeWsPath = null;
       sessions.clear();
       managedTabs.clear();
@@ -165,7 +165,7 @@ async function connect() {
         const { sessionId, targetInfo } = msg.params;
         sessions.set(targetInfo.targetId, sessionId);
       }
-      // 拦截页面对 Chrome 调试端口的探测请求（反风控）
+      // 攔截頁面對 Chrome 除錯埠的探測請求（反風控）
       if (msg.method === 'Fetch.requestPaused') {
         const { requestId, sessionId: sid } = msg.params;
         sendCDP('Fetch.failRequest', { requestId, errorReason: 'ConnectionRefused' }, sid).catch(() => {});
@@ -183,7 +183,7 @@ async function connect() {
       ws.removeEventListener?.('error', onError);
     }
 
-    // 兼容 Node 原生 WebSocket 和 ws 模块的事件 API
+    // 相容 Node 原生 WebSocket 和 ws 模組的事件 API
     if (ws.on) {
       ws.on('open', onOpen);
       ws.on('error', onError);
@@ -201,21 +201,21 @@ async function connect() {
 function sendCDP(method, params = {}, sessionId = null) {
   return new Promise((resolve, reject) => {
     if (!ws || (ws.readyState !== WS.OPEN && ws.readyState !== 1)) {
-      return reject(new Error('WebSocket 未连接'));
+      return reject(new Error('WebSocket 未連線'));
     }
     const id = ++cmdId;
     const msg = { id, method, params };
     if (sessionId) msg.sessionId = sessionId;
     const timer = setTimeout(() => {
       pending.delete(id);
-      reject(new Error('CDP 命令超时: ' + method));
+      reject(new Error('CDP 命令超時: ' + method));
     }, 30000);
     pending.set(id, { resolve, timer });
     ws.send(JSON.stringify(msg));
   });
 }
 
-// 已启用端口拦截的 session 集合（避免重复启用）
+// 已啟用埠攔截的 session 集合（避免重複啟用）
 const portGuardedSessions = new Set();
 
 async function ensureSession(targetId) {
@@ -224,15 +224,15 @@ async function ensureSession(targetId) {
   if (resp.result?.sessionId) {
     const sid = resp.result.sessionId;
     sessions.set(targetId, sid);
-    // 启用调试端口探测拦截
+    // 啟用除錯埠探測攔截
     await enablePortGuard(sid);
     return sid;
   }
-  throw new Error('attach 失败: ' + JSON.stringify(resp.error));
+  throw new Error('attach 失敗: ' + JSON.stringify(resp.error));
 }
 
-// 拦截页面对 Chrome 调试端口的探测（反风控）
-// 只拦截 127.0.0.1:{chromePort} 的请求，不影响其他任何本地服务
+// 攔截頁面對 Chrome 除錯埠的探測（反風控）
+// 只攔截 127.0.0.1:{chromePort} 的請求，不影響其他任何本地服務
 async function enablePortGuard(sessionId) {
   if (!chromePort || portGuardedSessions.has(sessionId)) return;
   try {
@@ -243,10 +243,10 @@ async function enablePortGuard(sessionId) {
       ]
     }, sessionId);
     portGuardedSessions.add(sessionId);
-  } catch { /* Fetch 域启用失败不影响主流程 */ }
+  } catch { /* Fetch 域啟用失敗不影響主流程 */ }
 }
 
-// --- 闲置 Tab 自动清理 ---
+// --- 閒置 Tab 自動清理 ---
 function touchTab(targetId) {
   const entry = managedTabs.get(targetId);
   if (entry) entry.lastAccessed = Date.now();
@@ -275,9 +275,9 @@ async function closeAllManagedTabs() {
   if (targets.length) console.log(`[CDP Proxy] Shutdown: closed ${targets.length} managed tab(s)`);
 }
 
-// --- 等待页面加载 ---
+// --- 等待頁面載入 ---
 async function waitForLoad(sessionId, timeoutMs = 15000) {
-  // 启用 Page 域
+  // 啟用 Page 域
   await sendCDP('Page.enable', {}, sessionId);
 
   return new Promise((resolve) => {
@@ -305,7 +305,7 @@ async function waitForLoad(sessionId, timeoutMs = 15000) {
   });
 }
 
-// --- 读取 POST body ---
+// --- 讀取 POST body ---
 async function readBody(req) {
   let body = '';
   for await (const chunk of req) body += chunk;
@@ -322,7 +322,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   try {
-    // /health 不需要连接浏览器
+    // /health 不需要連線瀏覽器
     if (pathname === '/health') {
       const connected = ws && (ws.readyState === WS.OPEN || ws.readyState === 1);
       res.end(JSON.stringify({
@@ -338,19 +338,19 @@ const server = http.createServer(async (req, res) => {
 
     await connect();
 
-    // GET /targets - 列出所有页面
+    // GET /targets - 列出所有頁面
     if (pathname === '/targets') {
       const resp = await sendCDP('Target.getTargets');
       const pages = resp.result.targetInfos.filter(t => t.type === 'page');
       res.end(JSON.stringify(pages, null, 2));
     }
 
-    // POST /new (body=URL) - 创建新后台 tab
+    // POST /new (body=URL) - 建立新後臺 tab
     else if (pathname === '/new') {
       if (req.method !== 'POST') {
         res.statusCode = 400;
         res.end(JSON.stringify({
-          error: 'v2.5.3 起 /new 改为 POST 传 URL（避免目标 URL 含 query 时被错误切分）',
+          error: 'v2.5.3 起 /new 改為 POST 傳 URL（避免目標 URL 含 query 時被錯誤切分）',
           migration: 'references/migration-2.5.3.md',
           example: "curl -X POST --data-raw 'https://example.com' http://localhost:3456/new",
         }));
@@ -362,18 +362,18 @@ const server = http.createServer(async (req, res) => {
       const targetId = resp.result.targetId;
       managedTabs.set(targetId, { lastAccessed: Date.now() });
 
-      // 等待页面加载
+      // 等待頁面載入
       if (targetUrl !== 'about:blank') {
         try {
           const sid = await ensureSession(targetId);
           await waitForLoad(sid);
-        } catch { /* 非致命，继续 */ }
+        } catch { /* 非致命，繼續 */ }
       }
 
       res.end(JSON.stringify({ targetId }));
     }
 
-    // GET /close?target=xxx - 关闭 tab
+    // GET /close?target=xxx - 關閉 tab
     else if (pathname === '/close') {
       const resp = await sendCDP('Target.closeTarget', { targetId: q.target });
       sessions.delete(q.target);
@@ -381,12 +381,12 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify(resp.result));
     }
 
-    // POST /navigate?target=xxx (body=URL) - 导航（自动等待加载）
+    // POST /navigate?target=xxx (body=URL) - 導航（自動等待載入）
     else if (pathname === '/navigate') {
       if (req.method !== 'POST') {
         res.statusCode = 400;
         res.end(JSON.stringify({
-          error: 'v2.5.3 起 /navigate 改为 POST 传 URL（避免目标 URL 含 query 时被错误切分）',
+          error: 'v2.5.3 起 /navigate 改為 POST 傳 URL（避免目標 URL 含 query 時被錯誤切分）',
           migration: 'references/migration-2.5.3.md',
           example: "curl -X POST --data-raw 'https://example.com' 'http://localhost:3456/navigate?target=ID'",
         }));
@@ -396,13 +396,13 @@ const server = http.createServer(async (req, res) => {
       const sid = await ensureSession(q.target);
       const resp = await sendCDP('Page.navigate', { url: targetUrl }, sid);
 
-      // 等待页面加载完成
+      // 等待頁面載入完成
       await waitForLoad(sid);
 
       res.end(JSON.stringify(resp.result));
     }
 
-    // GET /back?target=xxx - 后退
+    // GET /back?target=xxx - 後退
     else if (pathname === '/back') {
       const sid = await ensureSession(q.target);
       await sendCDP('Runtime.evaluate', { expression: 'history.back()' }, sid);
@@ -410,7 +410,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true }));
     }
 
-    // POST /eval?target=xxx - 执行 JS
+    // POST /eval?target=xxx - 執行 JS
     else if (pathname === '/eval') {
       const sid = await ensureSession(q.target);
       const body = await readBody(req);
@@ -430,14 +430,14 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // POST /click?target=xxx - 点击（body 为 CSS 选择器）
-    // POST /click?target=xxx — JS 层面点击（简单快速，覆盖大多数场景）
+    // POST /click?target=xxx - 點選（body 為 CSS 選擇器）
+    // POST /click?target=xxx — JS 層面點選（簡單快速，覆蓋大多數場景）
     else if (pathname === '/click') {
       const sid = await ensureSession(q.target);
       const selector = await readBody(req);
       if (!selector) {
         res.statusCode = 400;
-        res.end(JSON.stringify({ error: 'POST body 需要 CSS 选择器' }));
+        res.end(JSON.stringify({ error: 'POST body 需要 CSS 選擇器' }));
         return;
       }
       const selectorJson = JSON.stringify(selector);
@@ -466,13 +466,13 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // POST /clickAt?target=xxx — CDP 浏览器级真实鼠标点击（算用户手势，能触发文件对话框、绕过反自动化检测）
+    // POST /clickAt?target=xxx — CDP 瀏覽器級真實滑鼠點選（算使用者手勢，能觸發檔案對話方塊、繞過反自動化檢測）
     else if (pathname === '/clickAt') {
       const sid = await ensureSession(q.target);
       const selector = await readBody(req);
       if (!selector) {
         res.statusCode = 400;
-        res.end(JSON.stringify({ error: 'POST body 需要 CSS 选择器' }));
+        res.end(JSON.stringify({ error: 'POST body 需要 CSS 選擇器' }));
         return;
       }
       const selectorJson = JSON.stringify(selector);
@@ -503,17 +503,17 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ clicked: true, x: coord.x, y: coord.y, tag: coord.tag, text: coord.text }));
     }
 
-    // POST /setFiles?target=xxx — 给 file input 设置本地文件（绕过文件对话框）
+    // POST /setFiles?target=xxx — 給 file input 設定本地檔案（繞過檔案對話方塊）
     // body: JSON { "selector": "input[type=file]", "files": ["/path/to/file1.png", "/path/to/file2.png"] }
     else if (pathname === '/setFiles') {
       const sid = await ensureSession(q.target);
       const body = JSON.parse(await readBody(req));
       if (!body.selector || !body.files) {
         res.statusCode = 400;
-        res.end(JSON.stringify({ error: '需要 selector 和 files 字段' }));
+        res.end(JSON.stringify({ error: '需要 selector 和 files 欄位' }));
         return;
       }
-      // 获取 DOM 节点
+      // 獲取 DOM 節點
       await sendCDP('DOM.enable', {}, sid);
       const doc = await sendCDP('DOM.getDocument', {}, sid);
       const node = await sendCDP('DOM.querySelector', {
@@ -525,7 +525,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: '未找到元素: ' + body.selector }));
         return;
       }
-      // 设置文件
+      // 設定檔案
       await sendCDP('DOM.setFileInputFiles', {
         nodeId: node.result.nodeId,
         files: body.files
@@ -533,7 +533,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ success: true, files: body.files.length }));
     }
 
-    // GET /scroll?target=xxx&y=3000 - 滚动
+    // GET /scroll?target=xxx&y=3000 - 滾動
     else if (pathname === '/scroll') {
       const sid = await ensureSession(q.target);
       const y = parseInt(q.y || '3000');
@@ -552,12 +552,12 @@ const server = http.createServer(async (req, res) => {
         expression: js,
         returnByValue: true,
       }, sid);
-      // 等待懒加载触发
+      // 等待懶載入觸發
       await new Promise(r => setTimeout(r, 800));
       res.end(JSON.stringify({ value: resp.result?.result?.value }));
     }
 
-    // GET /screenshot?target=xxx&file=/tmp/x.png - 截图
+    // GET /screenshot?target=xxx&file=/tmp/x.png - 截圖
     else if (pathname === '/screenshot') {
       const sid = await ensureSession(q.target);
       const format = q.format || 'png';
@@ -574,7 +574,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // GET /info?target=xxx - 获取页面信息
+    // GET /info?target=xxx - 獲取頁面資訊
     else if (pathname === '/info') {
       const sid = await ensureSession(q.target);
       const resp = await sendCDP('Runtime.evaluate', {
@@ -587,19 +587,19 @@ const server = http.createServer(async (req, res) => {
     else {
       res.statusCode = 404;
       res.end(JSON.stringify({
-        error: '未知端点',
+        error: '未知端點',
         endpoints: {
-          '/health': 'GET - 健康检查',
-          '/targets': 'GET - 列出所有页面 tab',
-          '/new': 'POST body=URL - 创建新后台 tab（自动等待加载）',
-          '/close?target=': 'GET - 关闭 tab',
-          '/navigate?target=': 'POST body=URL - 导航（自动等待加载）',
-          '/back?target=': 'GET - 后退',
-          '/info?target=': 'GET - 页面标题/URL/状态',
-          '/eval?target=': 'POST body=JS表达式 - 执行 JS',
-          '/click?target=': 'POST body=CSS选择器 - 点击元素',
-          '/scroll?target=&y=&direction=': 'GET - 滚动页面',
-          '/screenshot?target=&file=': 'GET - 截图',
+          '/health': 'GET - 健康檢查',
+          '/targets': 'GET - 列出所有頁面 tab',
+          '/new': 'POST body=URL - 建立新後臺 tab（自動等待載入）',
+          '/close?target=': 'GET - 關閉 tab',
+          '/navigate?target=': 'POST body=URL - 導航（自動等待載入）',
+          '/back?target=': 'GET - 後退',
+          '/info?target=': 'GET - 頁面標題/URL/狀態',
+          '/eval?target=': 'POST body=JS表示式 - 執行 JS',
+          '/click?target=': 'POST body=CSS選擇器 - 點選元素',
+          '/scroll?target=&y=&direction=': 'GET - 滾動頁面',
+          '/screenshot?target=&file=': 'GET - 截圖',
         },
       }));
     }
@@ -609,7 +609,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// 检查端口是否被占用
+// 檢查埠是否被佔用
 function checkPortAvailable(port) {
   return new Promise((resolve) => {
     const s = net.createServer();
@@ -620,10 +620,10 @@ function checkPortAvailable(port) {
 }
 
 async function main() {
-  // 检查是否已有 proxy 在运行
+  // 檢查是否已有 proxy 在執行
   const available = await checkPortAvailable(PORT);
   if (!available) {
-    // 验证已有实例是否健康
+    // 驗證已有例項是否健康
     try {
       const ok = await new Promise((resolve) => {
         http.get(`http://127.0.0.1:${PORT}/health`, { timeout: 2000 }, (res) => {
@@ -633,21 +633,21 @@ async function main() {
         }).on('error', () => resolve(false));
       });
       if (ok) {
-        console.log(`[CDP Proxy] 已有实例运行在端口 ${PORT}，退出`);
+        console.log(`[CDP Proxy] 已有例項執行在埠 ${PORT}，退出`);
         process.exit(0);
       }
-    } catch { /* 端口占用但非 proxy，继续报错 */ }
-    console.error(`[CDP Proxy] 端口 ${PORT} 已被占用`);
+    } catch { /* 端口占用但非 proxy，繼續報錯 */ }
+    console.error(`[CDP Proxy] 埠 ${PORT} 已被佔用`);
     process.exit(1);
   }
 
   server.listen(PORT, '127.0.0.1', () => {
-    console.log(`[CDP Proxy] 运行在 http://localhost:${PORT}`);
-    // 启动时尝试连接 Chrome（非阻塞）
-    connect().catch(e => console.error('[CDP Proxy] 初始连接失败:', e.message, '（将在首次请求时重试）'));
+    console.log(`[CDP Proxy] 執行在 http://localhost:${PORT}`);
+    // 啟動時嘗試連線 Chrome（非阻塞）
+    connect().catch(e => console.error('[CDP Proxy] 初始連線失敗:', e.message, '（將在首次請求時重試）'));
   });
 
-  // 定时清理闲置 tab
+  // 定時清理閒置 tab
   const cleanupTimer = setInterval(cleanupIdleTabs, CLEANUP_INTERVAL);
   cleanupTimer.unref();
 
@@ -661,12 +661,12 @@ async function main() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-// 防止未捕获异常导致进程崩溃
+// 防止未捕獲異常導致程序崩潰
 process.on('uncaughtException', (e) => {
-  console.error('[CDP Proxy] 未捕获异常:', e.message);
+  console.error('[CDP Proxy] 未捕獲異常:', e.message);
 });
 process.on('unhandledRejection', (e) => {
-  console.error('[CDP Proxy] 未处理拒绝:', e?.message || e);
+  console.error('[CDP Proxy] 未處理拒絕:', e?.message || e);
 });
 
 main();

@@ -1,18 +1,18 @@
 {
-  "name": "web-access",
+  "name": "web-access-tw",
   "owner": {
-    "name": "一泽 Eze"
+    "name": "一泽 Eze (TW fork: yelban)"
   },
   "metadata": {
-    "description": "Complete web browsing and automation skill for Claude Code"
+    "description": "Complete web browsing and automation skill for Claude Code (Traditional Chinese / Taiwan)"
   },
   "plugins": [
     {
-      "name": "web-access",
-      "description": "All web operations: search, fetch, CDP browser automation, site experience accumulation",
+      "name": "web-access-tw",
+      "description": "All web operations: search, fetch, CDP browser automation, site experience accumulation (Traditional Chinese / Taiwan)",
       "source": "./",
       "category": "productivity",
-      "tags": ["web", "browser", "cdp", "automation", "search"]
+      "tags": ["web", "browser", "cdp", "automation", "search", "traditional-chinese", "taiwan"]
     }
   ]
 }

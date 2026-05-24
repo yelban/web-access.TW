@@ -1,22 +1,22 @@
 #!/usr/bin/env node
-// find-url - 从本地 Chromium 系浏览器（Chrome / Edge）书签/历史中检索 URL
-// 用于定位公网搜索覆盖不到的目标（组织内部系统、SSO 后台、内网域名等）。
+// find-url - 從本地 Chromium 系瀏覽器（Chrome / Edge）書籤/歷史中檢索 URL
+// 用於定位公網搜尋覆蓋不到的目標（組織內部系統、SSO 後臺、內網域名等）。
 //
 // 用法：
-//   node find-url.mjs [关键词...] [--only bookmarks|history] [--limit N] [--since 1d|7h|YYYY-MM-DD]
+//   node find-url.mjs [關鍵詞...] [--only bookmarks|history] [--limit N] [--since 1d|7h|YYYY-MM-DD]
 //
-//   <关键词>             空格分词、多词 AND，匹配 title + url；可省略
-//   --only <source>      限定数据源（bookmarks / history），默认两者都查
-//   --browser <id>       限定浏览器（chrome / edge），默认遍历所有已安装的
-//   --limit N            条数上限，默认 20；0 = 不限
-//   --since <window>     时间窗（仅作用于历史）。1d / 7h / 30m 或 YYYY-MM-DD
-//   --sort recent|visits 历史排序：按最近访问 / 按访问次数，默认 recent
+//   <關鍵詞>             空格分詞、多詞 AND，匹配 title + url；可省略
+//   --only <source>      限定資料來源（bookmarks / history），預設兩者都查
+//   --browser <id>       限定瀏覽器（chrome / edge），預設遍歷所有已安裝的
+//   --limit N            條數上限，預設 20；0 = 不限
+//   --since <window>     時間窗（僅作用於歷史）。1d / 7h / 30m 或 YYYY-MM-DD
+//   --sort recent|visits 歷史排序：按最近訪問 / 按訪問次數，預設 recent
 //
 // 示例：
-//   node find-url.mjs 财务小智
+//   node find-url.mjs 財務小智
 //   node find-url.mjs agent skills
 //   node find-url.mjs github --since 7d --only history
-//   node find-url.mjs --since 7d --only history --sort visits   # 最近一周高频网站
+//   node find-url.mjs --since 7d --only history --sort visits   # 最近一週高頻網站
 //   node find-url.mjs --since 2d --only history --limit 0
 //   node find-url.mjs github --browser edge                     # 只查 Edge
 
@@ -25,7 +25,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 
-// --- 参数解析 -----------------------------------------------------------
+// --- 引數解析 -----------------------------------------------------------
 function parseArgs(argv) {
   const a = { keywords: [], only: null, browser: null, limit: 20, since: null, sort: 'recent' };
   for (let i = 0; i < argv.length; i++) {
@@ -36,12 +36,12 @@ function parseArgs(argv) {
     else if (v === '--since')   a.since   = parseSince(argv[++i]);
     else if (v === '--sort')    a.sort    = argv[++i];
     else if (v === '-h' || v === '--help') { printUsage(); process.exit(0); }
-    else if (v.startsWith('--')) die(`未知参数: ${v}`);
+    else if (v.startsWith('--')) die(`未知引數: ${v}`);
     else a.keywords.push(v);
   }
-  if (a.only && !['bookmarks', 'history'].includes(a.only)) die(`--only 仅支持 bookmarks|history`);
-  if (!['recent', 'visits'].includes(a.sort)) die(`--sort 仅支持 recent|visits`);
-  if (Number.isNaN(a.limit) || a.limit < 0) die('--limit 需为非负整数');
+  if (a.only && !['bookmarks', 'history'].includes(a.only)) die(`--only 僅支援 bookmarks|history`);
+  if (!['recent', 'visits'].includes(a.sort)) die(`--sort 僅支援 recent|visits`);
+  if (Number.isNaN(a.limit) || a.limit < 0) die('--limit 需為非負整數');
   return a;
 }
 
@@ -54,15 +54,15 @@ function parseSince(s) {
     return new Date(Date.now() - n * ms);
   }
   const d = new Date(s);
-  if (Number.isNaN(d.getTime())) die(`无效 --since 值: ${s}（用 1d / 7h / 30m / YYYY-MM-DD）`);
+  if (Number.isNaN(d.getTime())) die(`無效 --since 值: ${s}（用 1d / 7h / 30m / YYYY-MM-DD）`);
   return d;
 }
 
 function die(msg) { console.error(msg); process.exit(1); }
 function printUsage() { console.error(fs.readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 21).map(l => l.replace(/^\/\/ ?/, '')).join('\n')); }
 
-// --- 浏览器用户数据目录（跨平台 + 多浏览器） -----------------------------
-// 加新浏览器：只改这里
+// --- 瀏覽器使用者資料目錄（跨平台 + 多瀏覽器） -----------------------------
+// 加新瀏覽器：只改這裡
 function knownBrowserDataDirs() {
   const home = os.homedir();
   const localAppData = process.env.LOCALAPPDATA || '';
@@ -87,7 +87,7 @@ function knownBrowserDataDirs() {
   }
 }
 
-// --- Profile 枚举 -------------------------------------------------------
+// --- Profile 列舉 -------------------------------------------------------
 function listProfiles(dataDir) {
   try {
     const state = JSON.parse(fs.readFileSync(path.join(dataDir, 'Local State'), 'utf-8'));
@@ -98,13 +98,13 @@ function listProfiles(dataDir) {
   return [{ dir: 'Default', name: 'Default' }];
 }
 
-// --- 书签检索 -----------------------------------------------------------
+// --- 書籤檢索 -----------------------------------------------------------
 function searchBookmarks(profileDir, profileName, browserLabel, keywords) {
   const file = path.join(profileDir, 'Bookmarks');
   if (!fs.existsSync(file)) return [];
   let data;
   try { data = JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return []; }
-  if (!keywords.length) return [];  // 书签无时间维度，无关键词不返回
+  if (!keywords.length) return [];  // 書籤無時間維度，無關鍵詞不返回
 
   const needles = keywords.map(k => k.toLowerCase());
   const out = [];
@@ -125,7 +125,7 @@ function searchBookmarks(profileDir, profileName, browserLabel, keywords) {
   return out;
 }
 
-// --- 历史检索（SQLite 运行时锁定，需 copy 到 tmp） ------------------------
+// --- 歷史檢索（SQLite 執行時鎖定，需 copy 到 tmp） ------------------------
 const WEBKIT_EPOCH_DIFF_US = 11644473600000000n;  // 1601→1970 微秒差
 
 function searchHistory(profileDir, profileName, browserLabel, keywords, since, limit, sort) {
@@ -159,15 +159,15 @@ function searchHistory(profileDir, profileName, browserLabel, keywords, since, l
       return { browser: browserLabel, profile: profileName, title, url, visit, visit_count: parseInt(visit_count, 10) };
     });
   } catch (e) {
-    if (e.code === 'ENOENT') die('未找到 sqlite3 命令。macOS/Linux 通常自带；Windows 可用 `winget install sqlite.sqlite` 或从 https://sqlite.org/download.html 下载后加入 PATH。');
+    if (e.code === 'ENOENT') die('未找到 sqlite3 命令。macOS/Linux 通常自帶；Windows 可用 `winget install sqlite.sqlite` 或從 https://sqlite.org/download.html 下載後加入 PATH。');
     return [];
   } finally {
     try { fs.unlinkSync(tmp); } catch {}
   }
 }
 
-// --- 输出格式化 ---------------------------------------------------------
-// 用 `|` 作字段分隔符；字段内含 `|` 的替换成 `│`（全宽竖线）避免歧义
+// --- 輸出格式化 ---------------------------------------------------------
+// 用 `|` 作欄位分隔符；欄位內含 `|` 的替換成 `│`（全寬豎線）避免歧義
 const clean = s => String(s ?? '').replaceAll('|', '│').trim();
 
 function originTag(item, showBrowser, showProfile) {
@@ -178,9 +178,9 @@ function originTag(item, showBrowser, showProfile) {
 }
 
 function printBookmarks(items, showBrowser, showProfile) {
-  console.log(`[书签] ${items.length} 条`);
+  console.log(`[書籤] ${items.length} 條`);
   for (const b of items) {
-    const segs = [clean(b.name) || '(无标题)', clean(b.url)];
+    const segs = [clean(b.name) || '(無標題)', clean(b.url)];
     if (b.folder) segs.push(clean(b.folder));
     const tag = originTag(b, showBrowser, showProfile);
     if (tag) segs.push(tag);
@@ -189,9 +189,9 @@ function printBookmarks(items, showBrowser, showProfile) {
 }
 
 function printHistory(items, showBrowser, showProfile, sortLabel) {
-  console.log(`[历史] ${items.length} 条（${sortLabel}）`);
+  console.log(`[歷史] ${items.length} 條（${sortLabel}）`);
   for (const h of items) {
-    const segs = [clean(h.title) || '(无标题)', clean(h.url), h.visit];
+    const segs = [clean(h.title) || '(無標題)', clean(h.url), h.visit];
     if (h.visit_count > 1) segs.push(`visits=${h.visit_count}`);
     const tag = originTag(h, showBrowser, showProfile);
     if (tag) segs.push(tag);
@@ -206,12 +206,12 @@ let browsers = knownBrowserDataDirs().filter(b => fs.existsSync(b.dir));
 if (args.browser) {
   const filtered = browsers.filter(b => b.id === args.browser);
   if (!filtered.length) {
-    const available = browsers.map(b => b.id).join('、') || '无';
-    die(`未找到浏览器 ${args.browser} 的用户数据目录（已检测到：${available}）`);
+    const available = browsers.map(b => b.id).join('、') || '無';
+    die(`未找到瀏覽器 ${args.browser} 的使用者資料目錄（已檢測到：${available}）`);
   }
   browsers = filtered;
 }
-if (!browsers.length) die('未找到任何浏览器（Chrome / Edge）的用户数据目录');
+if (!browsers.length) die('未找到任何瀏覽器（Chrome / Edge）的使用者資料目錄');
 
 const doBookmarks = args.only !== 'history';
 const doHistory   = args.only !== 'bookmarks';
@@ -228,7 +228,7 @@ for (const browser of browsers) {
   }
 }
 
-// 历史跨 profile/浏览器 合并后按指定 sort 重排 + 切顶
+// 歷史跨 profile/瀏覽器 合併後按指定 sort 重排 + 切頂
 if (args.sort === 'visits') {
   history.sort((a, b) => (b.visit_count || 0) - (a.visit_count || 0) || (b.visit || '').localeCompare(a.visit || ''));
 } else {
@@ -237,17 +237,17 @@ if (args.sort === 'visits') {
 const bookmarksOut = args.limit === 0 ? bookmarks : bookmarks.slice(0, args.limit);
 const historyOut   = args.limit === 0 ? history   : history.slice(0, args.limit);
 
-// 仅当结果真的横跨多个 browser/profile 时才输出 @ 标注（避免单源场景噪音）
+// 僅當結果真的橫跨多個 browser/profile 時才輸出 @ 標註（避免單源場景噪音）
 const seenBrowsers = new Set([...bookmarksOut, ...historyOut].map(x => x.browser));
 const seenProfiles = new Set([...bookmarksOut, ...historyOut].map(x => x.profile));
 const showBrowser = seenBrowsers.size > 1;
 const showProfile = seenProfiles.size > 1;
 
-const sortLabel = args.sort === 'visits' ? '按访问次数' : '按最近访问';
+const sortLabel = args.sort === 'visits' ? '按訪問次數' : '按最近訪問';
 if (doBookmarks) printBookmarks(bookmarksOut, showBrowser, showProfile);
 if (doBookmarks && doHistory) console.log();
 if (doHistory)   printHistory(historyOut, showBrowser, showProfile, sortLabel);
 
 if (!args.keywords.length && doBookmarks && !doHistory) {
-  console.error('\n提示：书签无时间维度，无关键词查询无意义。加关键词或切换 --only history。');
+  console.error('\n提示：書籤無時間維度，無關鍵詞查詢無意義。加關鍵詞或切換 --only history。');
 }

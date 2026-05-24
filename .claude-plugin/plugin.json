@@ -1,13 +1,13 @@
 {
-  "name": "web-access",
-  "description": "Complete web browsing and automation skill for Claude Code - intelligent tool selection, CDP browser automation, and site experience accumulation",
-  "version": "2.5.2",
+  "name": "web-access-tw",
+  "description": "Complete web browsing and automation skill for Claude Code (Traditional Chinese / Taiwan) - intelligent tool selection, CDP browser automation, and site experience accumulation",
+  "version": "2.5.3",
   "author": {
-    "name": "一泽 Eze"
+    "name": "一泽 Eze (TW fork: yelban)"
   },
-  "homepage": "https://github.com/eze-is/web-access",
-  "repository": "https://github.com/eze-is/web-access",
+  "homepage": "https://github.com/yelban/web-access.TW",
+  "repository": "https://github.com/yelban/web-access.TW",
   "license": "MIT",
-  "keywords": ["web", "browser", "cdp", "automation", "search"],
+  "keywords": ["web", "browser", "cdp", "automation", "search", "traditional-chinese", "taiwan"],
   "skills": ["./"]
 }

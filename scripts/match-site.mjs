@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// 根据用户输入匹配站点经验文件（跨平台，替代 match-site.sh）
-// 用法：node match-site.mjs "用户输入文本"
-// 输出：匹配到的站点经验内容，无匹配则静默
+// 根據使用者輸入匹配站點經驗檔案（跨平台，替代 match-site.sh）
+// 用法：node match-site.mjs "使用者輸入文本"
+// 輸出：匹配到的站點經驗內容，無匹配則靜默
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,17 +30,17 @@ for (const entry of fs.readdirSync(PATTERNS_DIR, { withFileTypes: true })) {
     .map((v) => v.trim())
     .filter(Boolean);
 
-  // 构建匹配模式
+  // 構建匹配模式
   const escaped = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = [domain, ...aliases].map(escaped).join('|');
   if (!new RegExp(pattern, 'i').test(query)) continue;
 
-  // 跳过 frontmatter，输出正文
+  // 跳過 frontmatter，輸出正文
   const fences = [...raw.matchAll(/^---\s*$/gm)];
   const body = fences.length >= 2
     ? raw.slice(fences[1].index + fences[1][0].length).replace(/^\r?\n/, '')
     : raw;
 
-  process.stdout.write(`--- 站点经验: ${domain} ---\n`);
+  process.stdout.write(`--- 站點經驗: ${domain} ---\n`);
   process.stdout.write(body.trimEnd() + '\n\n');
 }
