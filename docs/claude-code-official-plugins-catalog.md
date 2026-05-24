@@ -38,7 +38,6 @@
 - [創意 / 媒體 (2)](#創意---媒體)
 - [企業 / 特定行業 (21)](#企業---特定行業)
 
-
 ---
 
 ## Part 1：強烈推薦清單
@@ -101,7 +100,6 @@ for p in skill-creator context7 superpowers code-review claude-md-management \
   claude plugin install $p@claude-plugins-official --scope user
 done
 ```
-
 
 ---
 
@@ -1112,7 +1110,7 @@ done
 
 ### 安全性 / 漏洞掃描 (11)
 
-**Scope 預設**：user (通用)/ project (特定 vendor)
+**Scope 預設**：user (通用) / project (特定 vendor)
 
 ### `security-guidance` · ⬇ 162,177
 
@@ -1460,23 +1458,32 @@ claude plugin prune
 
 ### D. 安裝量分布觀察
 
-| 量級 | 數量 | 範圍 |
-|------|------|------|
-| 100k+ | 11 | 通用 dev 工具 + 熱門整合服務 |
-| 10k–100k | 27 | 主流整合（GitHub/Figma/Vercel/Supabase 等） |
-| 1k–10k | 89 | 中型 / 特定領域 |
-| < 1k | 45 | niche / 企業 / 新發布 |
+| 量級 | 數量 |
+|------|------|
+| 100k+ | 17 |
+| 10k–100k | 43 |
+| 1k–10k | 64 |
+| < 1k | 48 |
+
 
 **Top 5**：`frontend-design` (790k) → `superpowers` (713k) → `context7` (337k) → `code-review` (333k) → `code-simplifier` (273k)
 
-### E. 怎麼定期回顧這份目錄
+### E. 自動更新此目錄
 
-1. 用 `claude plugin list --available --json | python3 -c '...'` 重抓
-2. 對照本目錄差集，更新本檔
-3. 建議每 1-2 個月跑一次，因為 marketplace 在持續新增 plugin
+```bash
+./scripts/refresh-plugins-catalog.sh
+```
+
+該腳本會：
+1. 跑 `claude plugin list --available --json` 抓最新 marketplace 資料
+2. 解析、按 23 類分類、套用 template + 手寫覆寫
+3. 重新生成本目錄並覆寫
+4. 在 stdout 顯示新增 / 移除的 plugin 名單
+
+建議每 1-2 個月跑一次，因為 marketplace 持續新增 plugin。
 
 ---
 
 ## 變更紀錄
 
-- 2026-05-24：初版，涵蓋當時 marketplace 全部 172 個 plugin
+- 2026-05-24：重新整理（172 個 plugin）
