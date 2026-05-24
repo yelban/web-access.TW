@@ -8,7 +8,7 @@
   },
   "plugins": [
     {
-      "name": "web-access-tw",
+      "name": "web-access",
       "description": "All web operations: search, fetch, CDP browser automation, site experience accumulation (Traditional Chinese / Taiwan)",
       "source": "./",
       "category": "productivity",

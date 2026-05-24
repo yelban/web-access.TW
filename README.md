@@ -107,13 +107,13 @@ npx skills add yelban/web-access.TW
 
 ```bash
 claude plugin marketplace add https://github.com/yelban/web-access.TW
-claude plugin install web-access@web-access --scope user
+claude plugin install web-access@web-access-tw --scope user
 ```
 
 **方式四：手動**
 
 ```bash
-git clone https://github.com/yelban/web-access.TW ~/.claude/skills/web-access-tw
+git clone https://github.com/yelban/web-access.TW ~/.claude/skills/web-access
 ```
 
 ## 前置配置（CDP 模式）
@@ -153,7 +153,7 @@ pkill -f cdp-proxy.mjs && node "${CLAUDE_SKILL_DIR}/scripts/check-deps.mjs"
 ```bash
 node "${CLAUDE_SKILL_DIR}/scripts/check-deps.mjs"
 # $CLAUDE_SKILL_DIR 是 skill 載入時自動設定的環境變數
-# 手動執行請替換為實際路徑，如 ~/.claude/skills/web-access-tw
+# 手動執行請替換為實際路徑，如 ~/.claude/skills/web-access
 ```
 
 ## CDP Proxy API

@@ -1,5 +1,5 @@
 ---
-name: web-access-tw
+name: web-access
 license: MIT
 github: https://github.com/yelban/web-access.TW
 description:

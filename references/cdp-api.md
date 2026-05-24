@@ -3,7 +3,7 @@
 ## 基礎資訊
 
 - 地址：`http://localhost:3456`
-- 啟動：`node ~/.claude/skills/web-access-tw/scripts/cdp-proxy.mjs &`
+- 啟動：`node ~/.claude/skills/web-access/scripts/cdp-proxy.mjs &`
 - 啟動後持續執行，不建議主動停止（重啟需 Chrome 重新授權）
 - 強制停止：`pkill -f cdp-proxy.mjs`
 
