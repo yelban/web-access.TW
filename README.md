@@ -64,7 +64,7 @@ AI Agent 原本的聯網能力（WebSearch、WebFetch）缺少排程策略和瀏
 <details><summary>v2.4.3 更新</summary>
 
 - **修復 CLAUDE_SKILL_DIR 路徑問題** — bash 程式碼塊改用 `${CLAUDE_SKILL_DIR}` 字串替換語法，修復 Windows Git Bash 路徑轉換錯誤和變數未設定問題（#47 #46）
-- **站點經驗列表合併到前置檢查** — 啟動檢查通過後自動輸出已有站點經驗列表，移除不可靠的 `!` 內聯注入
+- **站點經驗列表合併到前置檢查** — 啟動檢查透過後自動輸出已有站點經驗列表，移除不可靠的 `!` 內聯注入
 </details>
 
 <details><summary>v2.4.1 更新</summary>

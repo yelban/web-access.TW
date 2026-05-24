@@ -62,7 +62,7 @@ curl -s -X POST "http://localhost:3456/eval?target=ID" -d 'document.title'
 ```
 
 ### POST /click?target=ID
-JS 層面點選（`el.click()`），POST body 為 CSS 選擇器。自動 scrollIntoView 後點擊。簡單快速，覆蓋大多數場景。
+JS 層面點選（`el.click()`），POST body 為 CSS 選擇器。自動 scrollIntoView 後點選。簡單快速，覆蓋大多數場景。
 ```bash
 curl -s -X POST "http://localhost:3456/click?target=ID" -d 'button.submit'
 ```

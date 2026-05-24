@@ -661,7 +661,7 @@ async function main() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-// 防止未捕獲異常導致程序崩潰
+// 防止未捕獲異常導致程式崩潰
 process.on('uncaughtException', (e) => {
   console.error('[CDP Proxy] 未捕獲異常:', e.message);
 });
